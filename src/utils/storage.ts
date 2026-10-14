@@ -8,6 +8,8 @@ export const STORAGE_KEYS = {
   DIARY: 'gamin_life_diary',
   NOTIFICATIONS: 'gamin_life_notifications',
   ACTIVE_DATE: 'gamin_life_active_date',
+  ACTIVE_ACCOUNT: 'gamin_life_active_account',
+  XP: 'gamin_life_xp',
 };
 
 // Preset gamer avatars
@@ -345,7 +347,10 @@ export function getInitialSeedTasks(todayStr: string): Task[] {
 export function loadUserProfile(): UserProfile | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.USER_PROFILE);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') return parsed;
+    }
   } catch (e) {
     console.error('Error loading profile:', e);
   }
@@ -357,6 +362,22 @@ export function saveUserProfile(profile: UserProfile): void {
     localStorage.setItem(STORAGE_KEYS.USER_PROFILE, JSON.stringify(profile));
   } catch (e) {
     console.error('Error saving profile:', e);
+  }
+}
+
+export function getActiveAccount(): string {
+  try {
+    return localStorage.getItem(STORAGE_KEYS.ACTIVE_ACCOUNT) || 'default';
+  } catch {
+    return 'default';
+  }
+}
+
+export function setActiveAccount(account: string): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.ACTIVE_ACCOUNT, account.toLowerCase().trim());
+  } catch (e) {
+    console.error('Error saving active account:', e);
   }
 }
 
@@ -382,9 +403,9 @@ export function saveSections(sections: DaySection[]): void {
 export function loadTasks(todayStr: string): Task[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.TASKS) || localStorage.getItem('atomic_flow_tasks');
-    if (raw) {
-      const parsed: Task[] = JSON.parse(raw);
-      if (parsed.length > 0) return parsed;
+    if (raw !== null) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
     }
   } catch (e) {
     console.error('Error loading tasks:', e);
@@ -405,9 +426,9 @@ export function saveTasks(tasks: Task[]): void {
 export function loadHabits(todayStr: string): Habit[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.HABITS) || localStorage.getItem('atomic_flow_habits');
-    if (raw) {
-      const parsed: Habit[] = JSON.parse(raw);
-      if (parsed.length > 0) return parsed;
+    if (raw !== null) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
     }
   } catch (e) {
     console.error('Error loading habits:', e);
@@ -464,5 +485,36 @@ export function saveNotifications(items: NotificationItem[]): void {
     localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(items.slice(0, 50)));
   } catch (e) {
     console.error('Error saving notifications:', e);
+  }
+}
+
+export function exportAllData(): string {
+  const data = {
+    profile: loadUserProfile(),
+    tasks: loadTasks(new Date().toISOString().split('T')[0]),
+    habits: loadHabits(new Date().toISOString().split('T')[0]),
+    diary: loadDiaryEntries(),
+    notifications: loadNotifications(),
+    xp: Number(localStorage.getItem(STORAGE_KEYS.XP) || '320'),
+    activeAccount: getActiveAccount(),
+    exportedAt: new Date().toISOString(),
+  };
+  return JSON.stringify(data, null, 2);
+}
+
+export function importAllData(jsonStr: string): boolean {
+  try {
+    const parsed = JSON.parse(jsonStr);
+    if (parsed.profile) saveUserProfile(parsed.profile);
+    if (Array.isArray(parsed.tasks)) saveTasks(parsed.tasks);
+    if (Array.isArray(parsed.habits)) saveHabits(parsed.habits);
+    if (parsed.diary) localStorage.setItem(STORAGE_KEYS.DIARY, JSON.stringify(parsed.diary));
+    if (Array.isArray(parsed.notifications)) saveNotifications(parsed.notifications);
+    if (parsed.xp !== undefined) localStorage.setItem(STORAGE_KEYS.XP, parsed.xp.toString());
+    if (parsed.activeAccount) setActiveAccount(parsed.activeAccount);
+    return true;
+  } catch (e) {
+    console.error('Failed to import data:', e);
+    return false;
   }
 }

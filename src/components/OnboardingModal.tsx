@@ -147,22 +147,32 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) 
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <div>
             <h2 className="text-base font-bold text-slate-900">Welcome! Set Up Your Routine</h2>
-            <p className="text-xs text-slate-500">Step {step} of 3</p>
+            <p className="text-xs text-slate-500">Step {step} of 3 • Customise or Quick Start</p>
           </div>
 
-          <div className="flex space-x-1.5">
-            {[1, 2, 3].map((s) => (
-              <div
-                key={s}
-                className={`w-7 h-1.5 rounded-full transition-all ${
-                  s === step
-                    ? 'bg-indigo-600'
-                    : s < step
-                    ? 'bg-emerald-500'
-                    : 'bg-slate-200'
-                }`}
-              />
-            ))}
+          <div className="flex items-center space-x-3">
+            <button
+              type="button"
+              onClick={handleFinish}
+              className="text-xs text-indigo-600 hover:text-indigo-800 font-bold px-2 py-1 rounded-lg hover:bg-indigo-50 transition-colors cursor-pointer"
+              title="Skip setup and use defaults"
+            >
+              Quick Start ⚡
+            </button>
+            <div className="flex space-x-1.5">
+              {[1, 2, 3].map((s) => (
+                <div
+                  key={s}
+                  className={`w-7 h-1.5 rounded-full transition-all ${
+                    s === step
+                      ? 'bg-indigo-600'
+                      : s < step
+                      ? 'bg-emerald-500'
+                      : 'bg-slate-200'
+                  }`}
+                />
+              ))}
+            </div>
           </div>
         </div>
 
@@ -229,6 +239,20 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) 
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-sm text-slate-800 focus:outline-none focus:border-indigo-500"
                 autoFocus
               />
+            </div>
+
+            <div className="pt-1">
+              <span className="text-[11px] text-slate-500 block mb-1">Or continue with browser account:</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setName('blazon');
+                  handleFinish();
+                }}
+                className="w-full py-2 px-3 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-300 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <span>⚡ Continue with blazon000000@gmail.com</span>
+              </button>
             </div>
           </div>
         )}

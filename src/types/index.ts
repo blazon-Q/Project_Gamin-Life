@@ -9,6 +9,19 @@ export interface UserProfile {
   streakShields: number;
   joinedAt: string;
   hasOnboarded: boolean;
+  email?: string;
+  accountType?: 'google' | 'browser' | 'guest';
+}
+
+export interface UserAccountData {
+  account: string;
+  profile: UserProfile;
+  tasks: Task[];
+  habits: Habit[];
+  diaryEntries: Record<string, DailyDiaryEntry>;
+  notifications: NotificationItem[];
+  xpPoints: number;
+  updatedAt?: string;
 }
 
 export interface SubTask {

@@ -14,6 +14,7 @@ import { DiaryModal } from './components/DiaryModal';
 import { NotificationDrawer } from './components/NotificationDrawer';
 import { OnboardingModal } from './components/OnboardingModal';
 import { ProfileModal } from './components/ProfileModal';
+import { AccountModal } from './components/AccountModal';
 import {
   Task,
   Habit,
@@ -35,7 +36,10 @@ import {
   loadNotifications,
   saveNotifications,
   PRESET_AVATARS,
+  getActiveAccount,
+  setActiveAccount,
 } from './utils/storage';
+import { syncService, SyncStatus } from './utils/syncService';
 import { checkUpcomingReminders } from './utils/notifications';
 import { playSuccessChime, playLevelUpFanfare } from './utils/audio';
 import { Bell, X } from 'lucide-react';
@@ -45,8 +49,26 @@ export default function App() {
   const [currentDate, setCurrentDate] = useState<string>(todayStr);
 
   // User Profile & Onboarding State
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(() => loadUserProfile());
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(() => {
+    const loaded = loadUserProfile();
+    if (loaded) return loaded;
+    return {
+      name: 'Player One',
+      avatarUrl: PRESET_AVATARS[0].url,
+      archetype: 'student',
+      level: 1,
+      xp: 320,
+      streakShields: 2,
+      joinedAt: new Date().toISOString(),
+      hasOnboarded: true,
+      email: 'blazon000000@gmail.com',
+      accountType: 'browser',
+    };
+  });
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>('saved');
+  const [activeAccount, setActiveAccountState] = useState<string>(() => getActiveAccount());
 
   // Persistent States
   const [tasks, setTasks] = useState<Task[]>(() => loadTasks(todayStr));
@@ -80,28 +102,66 @@ export default function App() {
   const [activeToast, setActiveToast] = useState<NotificationItem | null>(null);
   const notifiedKeysRef = useRef<Set<string>>(new Set());
 
-  // Save changes to localStorage
+  // Initial server load & status subscription
+  useEffect(() => {
+    const currentAcc = getActiveAccount();
+    syncService.fetchServerData(currentAcc).then((serverData) => {
+      if (serverData) {
+        if (serverData.profile) setUserProfile(serverData.profile);
+        if (Array.isArray(serverData.tasks) && serverData.tasks.length > 0) setTasks(serverData.tasks);
+        if (Array.isArray(serverData.habits) && serverData.habits.length > 0) setHabits(serverData.habits);
+        if (serverData.diaryEntries) setDiaryEntries(serverData.diaryEntries);
+        if (serverData.notifications) setNotifications(serverData.notifications);
+        if (serverData.xpPoints !== undefined) setXpPoints(serverData.xpPoints);
+      } else {
+        // Seed server with initial state so it's permanently stored on disk immediately
+        if (userProfile) {
+          syncService.saveImmediately({
+            account: currentAcc,
+            profile: userProfile,
+            tasks,
+            habits,
+            diaryEntries,
+            notifications,
+            xpPoints,
+          });
+        }
+      }
+    });
+
+    const unsub = syncService.subscribeStatus((status) => {
+      setSyncStatus(status);
+    });
+
+    return unsub;
+  }, []);
+
+  // Save changes to localStorage AND queue persistent cloud sync
   useEffect(() => {
     if (userProfile) {
       saveUserProfile(userProfile);
     }
-  }, [userProfile]);
-
-  useEffect(() => {
     saveTasks(tasks);
-  }, [tasks]);
-
-  useEffect(() => {
     saveHabits(habits);
-  }, [habits]);
-
-  useEffect(() => {
     saveNotifications(notifications);
-  }, [notifications]);
-
-  useEffect(() => {
     localStorage.setItem('gamin_life_xp', xpPoints.toString());
-  }, [xpPoints]);
+
+    if (userProfile) {
+      syncService.queueCloudSync({
+        account: activeAccount,
+        profile: {
+          ...userProfile,
+          xp: xpPoints,
+          level: Math.floor(xpPoints / 250) + 1,
+        },
+        tasks,
+        habits,
+        diaryEntries,
+        notifications,
+        xpPoints,
+      });
+    }
+  }, [userProfile, tasks, habits, diaryEntries, notifications, xpPoints, activeAccount]);
 
   // Timely Reminder interval check
   useEffect(() => {
@@ -140,10 +200,54 @@ export default function App() {
     newHabits: Habit[],
     newTasks: Task[]
   ) => {
-    setUserProfile(newProfile);
+    const finalized: UserProfile = {
+      ...newProfile,
+      hasOnboarded: true,
+      email: newProfile.email || activeAccount,
+    };
+    setUserProfile(finalized);
     setHabits(newHabits);
     setTasks(newTasks);
     addXp(100);
+    localStorage.setItem('gamin_life_onboarded', 'true');
+    saveUserProfile(finalized);
+    saveTasks(newTasks);
+    saveHabits(newHabits);
+    syncService.saveImmediately({
+      account: activeAccount,
+      profile: finalized,
+      tasks: newTasks,
+      habits: newHabits,
+      diaryEntries,
+      notifications,
+      xpPoints: xpPoints + 100,
+    });
+  };
+
+  // Account Loaded / Switched Handler
+  const handleAccountLoaded = (loaded: {
+    profile: UserProfile;
+    tasks: Task[];
+    habits: Habit[];
+    diaryEntries: Record<string, DailyDiaryEntry>;
+    notifications: NotificationItem[];
+    xpPoints: number;
+  }) => {
+    setUserProfile(loaded.profile);
+    setTasks(loaded.tasks);
+    setHabits(loaded.habits);
+    setDiaryEntries(loaded.diaryEntries);
+    setNotifications(loaded.notifications);
+    setXpPoints(loaded.xpPoints);
+    if (loaded.profile.email) {
+      setActiveAccountState(loaded.profile.email);
+      setActiveAccount(loaded.profile.email);
+    }
+    saveUserProfile(loaded.profile);
+    saveTasks(loaded.tasks);
+    saveHabits(loaded.habits);
+    localStorage.setItem('gamin_life_onboarded', 'true');
+    localStorage.setItem('gamin_life_xp', loaded.xpPoints.toString());
   };
 
   // Toggle Task Completion
@@ -308,7 +412,8 @@ export default function App() {
     xp: xpPoints,
     streakShields: 2,
     joinedAt: new Date().toISOString(),
-    hasOnboarded: false,
+    hasOnboarded: true,
+    email: activeAccount,
   };
 
   const completedQuestsCount = tasks.filter((t) => t.isCompleted).length;
@@ -316,8 +421,8 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans">
-      {/* Onboarding Wizard on new device */}
-      {!userProfile?.hasOnboarded && (
+      {/* Onboarding Wizard on fresh visits if not yet completed */}
+      {!userProfile?.hasOnboarded && !localStorage.getItem('gamin_life_onboarded') && (
         <OnboardingModal onComplete={handleOnboardingComplete} />
       )}
 
@@ -333,6 +438,9 @@ export default function App() {
         xpPoints={xpPoints}
         userProfile={currentProfile}
         onOpenProfile={() => setIsProfileModalOpen(true)}
+        onOpenAccount={() => setIsAccountModalOpen(true)}
+        syncStatus={syncStatus}
+        activeAccount={activeAccount}
       />
 
       {/* Floating In-App Reminder Toast */}
@@ -403,6 +511,20 @@ export default function App() {
           completedQuestsCount={completedQuestsCount}
           onClose={() => setIsProfileModalOpen(false)}
           onSaveProfile={(updated) => setUserProfile(updated)}
+        />
+      )}
+
+      {/* Account & Cloud Memory Modal */}
+      {isAccountModalOpen && (
+        <AccountModal
+          userProfile={currentProfile}
+          tasks={tasks}
+          habits={habits}
+          diaryEntries={diaryEntries}
+          notifications={notifications}
+          xpPoints={xpPoints}
+          onClose={() => setIsAccountModalOpen(false)}
+          onAccountLoaded={handleAccountLoaded}
         />
       )}
 

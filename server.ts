@@ -435,6 +435,170 @@ Respond with JSON adhering to schema.`;
     }
   });
 
+  // --- Persistent Storage System for Users, Levels, and Things To Be Done ---
+  const DATA_DIR = path.join(__dirname, 'data');
+  const USERS_FILE = path.join(DATA_DIR, 'users-db.json');
+
+  function ensureDataFile() {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    if (!fs.existsSync(USERS_FILE)) {
+      fs.writeFileSync(USERS_FILE, JSON.stringify({}), 'utf-8');
+    }
+  }
+
+  function readUsersData(): Record<string, any> {
+    ensureDataFile();
+    try {
+      const raw = fs.readFileSync(USERS_FILE, 'utf-8');
+      return JSON.parse(raw) || {};
+    } catch (err) {
+      console.error('[Storage] Error reading users file:', err);
+      return {};
+    }
+  }
+
+  function saveUsersData(data: Record<string, any>) {
+    ensureDataFile();
+    try {
+      const tempPath = `${USERS_FILE}.tmp`;
+      fs.writeFileSync(tempPath, JSON.stringify(data, null, 2), 'utf-8');
+      fs.renameSync(tempPath, USERS_FILE);
+    } catch (err) {
+      console.error('[Storage] Error saving users file:', err);
+    }
+  }
+
+  // 1. Get user data by account identifier (email, username, or default)
+  app.get('/api/user/sync', (req, res) => {
+    try {
+      const account = ((req.query.account as string) || 'default').toLowerCase().trim();
+      const allUsers = readUsersData();
+      const userData = allUsers[account];
+      if (userData) {
+        res.json({ success: true, exists: true, data: userData });
+      } else {
+        res.json({ success: true, exists: false });
+      }
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err?.message || 'Sync get error' });
+    }
+  });
+
+  // 2. Save / Sync user data to persistent storage
+  app.post('/api/user/sync', (req, res) => {
+    try {
+      const { account, profile, tasks, habits, diaryEntries, notifications, xpPoints } = req.body;
+      const key = (account || profile?.email || 'default').toLowerCase().trim();
+      const allUsers = readUsersData();
+
+      const existing = allUsers[key] || {};
+      const updated = {
+        ...existing,
+        account: key,
+        profile: profile || existing.profile,
+        tasks: tasks !== undefined ? tasks : existing.tasks,
+        habits: habits !== undefined ? habits : existing.habits,
+        diaryEntries: diaryEntries !== undefined ? diaryEntries : existing.diaryEntries,
+        notifications: notifications !== undefined ? notifications : existing.notifications,
+        xpPoints: xpPoints !== undefined ? xpPoints : existing.xpPoints,
+        updatedAt: new Date().toISOString(),
+      };
+
+      allUsers[key] = updated;
+      saveUsersData(allUsers);
+      res.json({ success: true, savedAt: updated.updatedAt, account: key });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err?.message || 'Sync post error' });
+    }
+  });
+
+  // 3. Connect / Sign In with Google or Browser account
+  app.post('/api/auth/google', (req, res) => {
+    try {
+      const { credential, email: explicitEmail, name: explicitName, picture: explicitPicture } = req.body;
+      let email = explicitEmail;
+      let name = explicitName;
+      let picture = explicitPicture;
+
+      if (credential && typeof credential === 'string') {
+        try {
+          const parts = credential.split('.');
+          if (parts.length === 3) {
+            const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf-8'));
+            email = payload.email || email;
+            name = payload.name || name;
+            picture = payload.picture || picture;
+          }
+        } catch (e) {
+          console.warn('[Auth] Failed to decode JWT payload:', e);
+        }
+      }
+
+      if (!email) {
+        return res.status(400).json({ success: false, error: 'Email or account identifier is required' });
+      }
+
+      const key = email.toLowerCase().trim();
+      const allUsers = readUsersData();
+      let userData = allUsers[key];
+
+      if (!userData) {
+        // Automatically create account record on first visit
+        userData = {
+          account: key,
+          profile: {
+            name: name || key.split('@')[0],
+            avatarUrl: picture || 'https://api.dicebear.com/7.x/bottts/svg?seed=ShadowNinja&backgroundColor=020617',
+            archetype: 'student',
+            level: 1,
+            xp: 150,
+            streakShields: 2,
+            joinedAt: new Date().toISOString(),
+            hasOnboarded: true,
+            email: key,
+            accountType: 'google',
+          },
+          tasks: [],
+          habits: [],
+          diaryEntries: {},
+          notifications: [],
+          xpPoints: 150,
+          updatedAt: new Date().toISOString(),
+        };
+        allUsers[key] = userData;
+        saveUsersData(allUsers);
+      }
+
+      res.json({ success: true, user: userData });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err?.message || 'Auth failure' });
+    }
+  });
+
+  // 4. List known accounts for quick switching
+  app.get('/api/user/accounts', (req, res) => {
+    try {
+      const allUsers = readUsersData();
+      const accounts = Object.keys(allUsers).map((key) => {
+        const u = allUsers[key];
+        return {
+          account: key,
+          name: u.profile?.name || key,
+          avatarUrl: u.profile?.avatarUrl,
+          level: u.profile?.level || Math.floor((u.xpPoints || 0) / 250) + 1,
+          xp: u.xpPoints || 0,
+          tasksCount: Array.isArray(u.tasks) ? u.tasks.length : 0,
+          updatedAt: u.updatedAt,
+        };
+      });
+      res.json({ success: true, accounts });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err?.message });
+    }
+  });
+
   // Vite middleware in dev or static serving in prod
   const hasDist = fs.existsSync(path.join(__dirname, 'dist', 'index.html'));
   const isProduction = process.env.NODE_ENV === 'production' || !!process.env.RAILWAY_ENVIRONMENT || !!process.env.RENDER || hasDist;

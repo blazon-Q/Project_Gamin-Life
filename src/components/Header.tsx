@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, BookOpen, Bell, Volume2, VolumeX, ShieldCheck, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar, BookOpen, Bell, Volume2, VolumeX, ShieldCheck, ChevronLeft, ChevronRight, Cloud } from 'lucide-react';
 import { NotificationItem, UserProfile } from '../types';
 
 interface HeaderProps {
@@ -13,6 +13,9 @@ interface HeaderProps {
   xpPoints: number;
   userProfile: UserProfile;
   onOpenProfile: () => void;
+  onOpenAccount: () => void;
+  syncStatus?: 'idle' | 'syncing' | 'saved' | 'error';
+  activeAccount?: string;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -26,6 +29,9 @@ export const Header: React.FC<HeaderProps> = ({
   xpPoints,
   userProfile,
   onOpenProfile,
+  onOpenAccount,
+  syncStatus = 'saved',
+  activeAccount = 'default',
 }) => {
   const unreadCount = notifications.filter((n) => !n.read).length;
 
@@ -158,6 +164,34 @@ export const Header: React.FC<HeaderProps> = ({
               <span className="text-slate-600 font-mono text-[11px] font-semibold">{xpPoints} XP</span>
             </button>
 
+            {/* Cloud Memory & Account Button */}
+            <button
+              type="button"
+              onClick={onOpenAccount}
+              className="flex items-center space-x-1.5 px-2.5 py-1.5 text-xs font-semibold bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl border border-slate-200 transition-all cursor-pointer shadow-2xs"
+              title="Account & Cloud Memory: Auto-saves your username, level, and quests"
+            >
+              <Cloud className="w-3.5 h-3.5 text-indigo-600" />
+              <span className="hidden md:inline max-w-[120px] truncate text-[11px]">
+                {userProfile.email || (activeAccount !== 'default' ? activeAccount : 'Cloud Saved')}
+              </span>
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  syncStatus === 'syncing'
+                    ? 'bg-amber-400 animate-spin'
+                    : syncStatus === 'error'
+                    ? 'bg-amber-500'
+                    : 'bg-emerald-500 animate-pulse'
+                }`}
+                title={
+                  syncStatus === 'syncing'
+                    ? 'Saving to cloud memory...'
+                    : syncStatus === 'error'
+                    ? 'Saved locally'
+                    : 'Permanently saved to cloud'
+                }
+              />
+            </button>
 
             {/* Daily Victory Log */}
             <button
