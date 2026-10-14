@@ -1,6 +1,7 @@
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { GoogleGenAI, Type } from '@google/genai';
@@ -435,12 +436,17 @@ Respond with JSON adhering to schema.`;
   });
 
   // Vite middleware in dev or static serving in prod
-  if (process.env.NODE_ENV === 'production') {
+  const hasDist = fs.existsSync(path.join(__dirname, 'dist', 'index.html'));
+  const isProduction = process.env.NODE_ENV === 'production' || !!process.env.RAILWAY_ENVIRONMENT || !!process.env.RENDER || hasDist;
+
+  if (isProduction && hasDist) {
+    console.log(`[Production] Serving static files from ${path.join(__dirname, 'dist')}`);
     app.use(express.static(path.join(__dirname, 'dist')));
     app.get('*', (req, res) => {
       res.sendFile(path.join(__dirname, 'dist', 'index.html'));
     });
   } else {
+    console.log('[Development] Initializing Vite middleware');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
