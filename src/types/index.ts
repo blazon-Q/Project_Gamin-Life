@@ -92,6 +92,7 @@ export interface NotificationItem {
 }
 
 export interface AISplitResult {
+  creativeTheme?: string;
   isTooBig: boolean;
   frictionAnalysis: string;
   recommendedTotalMinutes: number;

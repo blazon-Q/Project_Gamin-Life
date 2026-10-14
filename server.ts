@@ -31,116 +31,193 @@ async function startServer() {
     res.json({ status: 'ok', serverTime: new Date().toISOString() });
   });
 
+  // Helper to call Gemini with multi-model fallback so 503/high-demand errors are bypassed
+  async function callGemini(contents: string, responseSchema: any) {
+    const models = ['gemini-3.1-flash-lite', 'gemini-3.8-flash', 'gemini-flash-latest'];
+    let lastError: any = null;
+    for (const model of models) {
+      try {
+        const response = await ai.models.generateContent({
+          model,
+          contents,
+          config: {
+            responseMimeType: 'application/json',
+            responseSchema,
+          },
+        });
+        if (response.text) {
+          return JSON.parse(response.text);
+        }
+      } catch (err: any) {
+        console.warn(`[Gemini] Model ${model} failed (${err?.status || err?.message}), checking next candidate...`);
+        lastError = err;
+      }
+    }
+    throw lastError || new Error('All Gemini model candidates failed');
+  }
+
+  // Dynamic intelligent fallback in the rare event network or API is completely offline
+  function generateSmartCreativeFallback(taskTitle: string, durationMinutes: number, style?: string) {
+    const title = (taskTitle || 'Quest').trim();
+    const dur = Number(durationMinutes) || 45;
+    const isShortOrCryptic = /^[a-zA-Z0-9_\-]{2,7}$/.test(title);
+
+    if (isShortOrCryptic) {
+      const acronym = title.toUpperCase();
+      return {
+        creativeTheme: `Operation ${acronym}: The High-Octane Decryption Sprint`,
+        isTooBig: dur > 50,
+        frictionAnalysis: `Cryptic objective "${title}" triggers subconscious hesitation because the victory condition isn't crystal clear. Framing it as a tactical operation strips out the overwhelm.`,
+        recommendedTotalMinutes: dur,
+        subtasks: [
+          {
+            title: `Decode Parameters: Jot down the top 3 deliverables for ${title}`,
+            estimatedMinutes: Math.max(5, Math.round(dur * 0.15)),
+            frictionReductionTip: 'Define what "victory" looks like on a single sticky note before touching tools.',
+          },
+          {
+            title: `Kinetic Launch: 15-minute blitz on the heaviest piece with zero tab-switching`,
+            estimatedMinutes: Math.round(dur * 0.55),
+            frictionReductionTip: 'Use the 5-second countdown rule: 5-4-3-2-1, begin without debating.',
+          },
+          {
+            title: `Boss Defeat: Polish, save checkpoints, and plant the victory flag`,
+            estimatedMinutes: Math.max(5, Math.round(dur * 0.3)),
+            frictionReductionTip: 'Stand up and celebrate physically the moment the timer rings.',
+          },
+        ],
+        temptationBundleSuggestion: 'Pair with an ice-cold specialty drink or 15 minutes of guilt-free video game time right after.',
+        proTip: 'Done beats perfect every single time. Momentum is built by closing loops, not pondering them.',
+      };
+    }
+
+    return {
+      creativeTheme: `Sprint: Defeating "${title}" in Style`,
+      isTooBig: dur > 50,
+      frictionAnalysis: `Large tasks create initiation friction when the start point is blurry. A micro-onramp turns a mountain into small stepping stones.`,
+      recommendedTotalMinutes: dur,
+      subtasks: [
+        {
+          title: `Low-Friction Ignition: Set up the stage and outline the first 3 moves for ${title}`,
+          estimatedMinutes: Math.max(5, Math.round(dur * 0.15)),
+          frictionReductionTip: 'Commit only to 3 minutes of setup. The brain lowers its shields once you touch the tools.',
+        },
+        {
+          title: `Deep Flow Sprint: Tackle the core substance in single-task focus`,
+          estimatedMinutes: Math.round(dur * 0.6),
+          frictionReductionTip: 'Put phone into airplane mode or another room. Silence all mental pop-ups.',
+        },
+        {
+          title: `Victory Pass: Quality check, tidy artifacts, and claim XP`,
+          estimatedMinutes: Math.max(5, Math.round(dur * 0.25)),
+          frictionReductionTip: 'A definitive closure ritual signals reward dopamine to your nervous system.',
+        },
+      ],
+      temptationBundleSuggestion: 'Enjoy a warm snack or your favorite playlist victory track once the checkmark is logged.',
+      proTip: 'Never miss twice: small consistent quest completions build unstoppable compounding confidence.',
+    };
+  }
+
   // 1. AI Task Sizing & Intelligent Subtask Splitting
-  // Evaluates if the task is too big for the allotted time, identifies cognitive friction,
-  // and breaks it down into low-friction micro sub-tasks with an immediate reward incentive.
+  // Evaluates task, analyzes cognitive friction, and invents creative, bespoke micro-steps
   app.post('/api/ai/split-task', async (req, res) => {
     try {
-      const { taskTitle, durationMinutes, sectionName, category, notes } = req.body;
+      const { taskTitle, durationMinutes, sectionName, category, notes, creativeStyle, seed } = req.body;
 
       if (!taskTitle) {
         return res.status(400).json({ error: 'Task title is required' });
       }
 
-      const prompt = `You are an elite productivity game-master and daily quest architect.
-A player is scheduling a quest / task:
-- Task: "${taskTitle}"
-- Allocated Duration: ${durationMinutes || 60} minutes
-- Day Section: "${sectionName || 'General'}"
-- Category: "${category || 'needed'}" (needed = core high-focus quest, rewarding = dopamine/recharge buff, maintenance = chores/admin)
-- Additional Notes: "${notes || 'None'}"
+      const styleGuide: Record<string, string> = {
+        gamified: 'Epic RPG quest style: dungeons, boss battles, skill checks, loot drops, and legendary momentum.',
+        speedrun: 'Anti-perfectionist speedrun blitz: maximum output, ruthless velocity, clearing obstacles at record pace.',
+        deep_flow: 'Deep flow state & cognitive immersion: pristine focus, distraction barriers, deep brain wave alignment.',
+        creative: 'Imaginative, witty, playful, and inventive: thinking completely outside the box with clever metaphors.',
+        gentle: 'Low-drag, zero-shame, ADHD-friendly: ultra-gentle on-ramp, micro-steps that feel as effortless as breathing.',
+      };
 
-Evaluate this quest:
-1. Is this task too big, vague, or cognitively overwhelming to be executed in one sitting without procrastination or drop-off?
-   - Tasks like "Study physics for 3 hours", "Write thesis", "Build website", "Clean entire house", "Work out hard" have high initiation friction and often lead to avoidance.
-   - If estimated time is > 45 minutes or if the task has multiple implicit steps, it is usually "too big" and should be broken down.
-2. If it is too big (or even if moderate), suggest 2 to 4 smaller, manageable sub-tasks.
-   - Include a 2-minute micro starter to eliminate startup inertia (e.g. "Open notebook and write formula index heading").
-   - Follow with focused execution blocks (e.g. 25-30m each).
-   - Suggest a satisfying checkpoint.
-3. Suggest a "Reward Buff" or temptation bundle (an immediate enjoyable reward or treat) to pair with or follow this quest.
+      const selectedStyleDescription = styleGuide[creativeStyle] || styleGuide.gamified;
 
-Respond with JSON adhering to this schema:
+      const prompt = `You are a world-class, hyper-creative productivity quest architect and gamification engine.
+A player wants you to analyze and creatively break down their quest/task:
+
+Task / Quest Title: "${taskTitle}"
+Allocated Duration: ${durationMinutes || 60} minutes
+Day Section: "${sectionName || 'General'}"
+Category: "${category || 'needed'}" (needed = core high-focus quest, rewarding = dopamine/recharge buff, maintenance = chores/admin)
+Additional Context: "${notes || 'None'}"
+Creative Style Lens: "${creativeStyle || 'gamified'}" (${selectedStyleDescription})
+Variation Seed: ${seed || Math.floor(Math.random() * 100000)}
+
+CRITICAL CREATIVE INSTRUCTIONS (AVOID ALL ROBOTIC FORMULAS):
+1. NO GENERIC OR REPETITIVE STEPS:
+   - NEVER output clichés like "Prepare workspace", "Core focused execution block", "Quick recap", or "Review checkpoint".
+   - Every single step title must be colorful, creative, and specifically tailored to the meaning of "${taskTitle}".
+2. IF THE INPUT IS UNUSUAL, CRYPTIC, SLANG, OR ODD (e.g. "dgad", "asdf", "grind", "vibe code", "pwn", "lore"):
+   - DO NOT give up or revert to a generic formula!
+   - Be brilliantly witty, imaginative, and perceptive! Interpret it with creative flair (e.g. for "dgad", interpret it as a secretive rogue op "The DGAD Protocol: Decode, Galvanize, Attack, Deliver" or a humorous "Don't-Give-A-Damn Anti-Perfectionism Blitz").
+3. IF THE INPUT IS REAL/NORMAL (e.g. "Study for physics exam", "Clean bedroom", "Write essay", "Fix bug in auth"):
+   - Provide authentic, domain-insider tactics that make the quest fun and dynamic.
+   - For studying: active-recall challenge, concept-mapping speedrun, boss-level self-quizzing.
+   - For cleaning: zone clearance speedrun, sensory soundtrack pairing, inventory sort.
+   - For writing/coding: skeleton prototyping, dirty draft blitz, polish pass.
+4. VARIABLE STEP COUNT:
+   - Provide between 2 and 5 sub-tasks depending on what naturally fits the task and duration. DO NOT always give 3 steps.
+5. FRICTION TIPS:
+   - Each sub-task must include a "frictionReductionTip" that is a genuine psychological or gaming lifehack (e.g. 5-second launch rule, inverted drafting, tactile countdown, binaural audio trick).
+6. CREATIVE THEME:
+   - Provide a catchy, cinematic, or playful "creativeTheme" title for this quest (e.g. "Operation DGAD: The Midnight Decryption", "Speedrun Bedroom Blitz: The Floor Is Lava").
+7. REWARD BUFF (temptationBundleSuggestion):
+   - Make it a delightfully specific, fun treat or reward paired to this quest (e.g., icy sparkling drink + 10m YouTube video, favorite game round, high-vibe stroll).
+
+Respond with valid JSON adhering strictly to this schema:
 {
+  "creativeTheme": string,
   "isTooBig": boolean,
-  "frictionAnalysis": string (1-2 sentences on why this might trigger avoidance or fatigue),
+  "frictionAnalysis": string (1-2 sentences with real personality analyzing the cognitive barrier or resistance),
   "recommendedTotalMinutes": number,
   "subtasks": [
     {
-      "title": string (action-oriented micro-task),
+      "title": string (action-packed, creative, specific to this task),
       "estimatedMinutes": number,
-      "frictionReductionTip": string
+      "frictionReductionTip": string (clever lifehack/tip)
     }
   ],
   "temptationBundleSuggestion": string,
-  "proTip": string
+  "proTip": string (memorable, witty mental model or pro rule)
 }`;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.8-flash',
-        contents: prompt,
-        config: {
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              isTooBig: { type: Type.BOOLEAN },
-              frictionAnalysis: { type: Type.STRING },
-              recommendedTotalMinutes: { type: Type.NUMBER },
-              subtasks: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    title: { type: Type.STRING },
-                    estimatedMinutes: { type: Type.NUMBER },
-                    frictionReductionTip: { type: Type.STRING },
-                  },
-                  required: ['title', 'estimatedMinutes'],
-                },
+      const splitTaskSchema = {
+        type: Type.OBJECT,
+        properties: {
+          creativeTheme: { type: Type.STRING },
+          isTooBig: { type: Type.BOOLEAN },
+          frictionAnalysis: { type: Type.STRING },
+          recommendedTotalMinutes: { type: Type.NUMBER },
+          subtasks: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                title: { type: Type.STRING },
+                estimatedMinutes: { type: Type.NUMBER },
+                frictionReductionTip: { type: Type.STRING },
               },
-              temptationBundleSuggestion: { type: Type.STRING },
-              proTip: { type: Type.STRING },
+              required: ['title', 'estimatedMinutes', 'frictionReductionTip'],
             },
-            required: ['isTooBig', 'frictionAnalysis', 'subtasks', 'temptationBundleSuggestion'],
           },
+          temptationBundleSuggestion: { type: Type.STRING },
+          proTip: { type: Type.STRING },
         },
-      });
+        required: ['creativeTheme', 'isTooBig', 'frictionAnalysis', 'subtasks', 'temptationBundleSuggestion', 'proTip'],
+      };
 
-      const responseText = response.text;
-      if (!responseText) {
-        throw new Error('Empty response from AI model');
-      }
-
-      const parsedData = JSON.parse(responseText);
+      const parsedData = await callGemini(prompt, splitTaskSchema);
       res.json(parsedData);
     } catch (error: any) {
-      console.error('Error in /api/ai/split-task:', error);
-      const duration = Number(req.body.durationMinutes) || 45;
-      res.json({
-        isTooBig: duration > 50,
-        frictionAnalysis: 'Breaking large intentions into clear physical actions reduces initiation friction.',
-        recommendedTotalMinutes: duration,
-        subtasks: [
-          {
-            title: `Prepare workspace and outline 1st step for "${req.body.taskTitle || 'Task'}"`,
-            estimatedMinutes: Math.min(5, Math.round(duration * 0.1)),
-            frictionReductionTip: '2-Minute Starter: Lower the barrier to start.',
-          },
-          {
-            title: `Core focused execution block`,
-            estimatedMinutes: Math.round(duration * 0.7),
-            frictionReductionTip: 'Single-tasking deep work without distractions.',
-          },
-          {
-            title: `Quick recap and checkpoint`,
-            estimatedMinutes: Math.max(5, Math.round(duration * 0.2)),
-            frictionReductionTip: 'Clear completion milestone.',
-          },
-        ],
-        temptationBundleSuggestion: 'Take a 10-minute guilt-free break with your favorite refreshment right after.',
-        proTip: 'Never miss twice: small consistent steps compound exponentially.',
-      });
+      console.error('Error in /api/ai/split-task after trying all models:', error);
+      const fallback = generateSmartCreativeFallback(req.body.taskTitle, req.body.durationMinutes, req.body.creativeStyle);
+      res.json(fallback);
     }
   });
 
@@ -172,42 +249,26 @@ Evaluate the user's daily balance and provide constructive guidance:
 - Actionable adjustments to make the schedule stick for months
 - A short power rule for sustainable daily momentum
 
-Respond with JSON adhering to:
-{
-  "status": string,
-  "sustainabilityScore": number,
-  "critique": string (2-3 sentences),
-  "recommendations": string[],
-  "temptationBundleIdea": string,
-  "strategyRule": string
-}`;
+Respond with JSON adhering to schema.`;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.8-flash',
-        contents: prompt,
-        config: {
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              status: { type: Type.STRING },
-              sustainabilityScore: { type: Type.NUMBER },
-              critique: { type: Type.STRING },
-              recommendations: {
-                type: Type.ARRAY,
-                items: { type: Type.STRING },
-              },
-              temptationBundleIdea: { type: Type.STRING },
-              strategyRule: { type: Type.STRING },
-            },
-            required: ['status', 'sustainabilityScore', 'critique', 'recommendations', 'strategyRule'],
+      const balanceSchema = {
+        type: Type.OBJECT,
+        properties: {
+          status: { type: Type.STRING },
+          sustainabilityScore: { type: Type.NUMBER },
+          critique: { type: Type.STRING },
+          recommendations: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING },
           },
+          temptationBundleIdea: { type: Type.STRING },
+          strategyRule: { type: Type.STRING },
         },
-      });
+        required: ['status', 'sustainabilityScore', 'critique', 'recommendations', 'strategyRule'],
+      };
 
-      const responseText = response.text;
-      if (!responseText) throw new Error('Empty AI response');
-      res.json(JSON.parse(responseText));
+      const parsedData = await callGemini(prompt, balanceSchema);
+      res.json(parsedData);
     } catch (error: any) {
       console.error('Error in /api/ai/balance-coach:', error);
       const needed = Number(req.body.neededMinutes) || 0;
@@ -250,33 +311,20 @@ The user is logging their evening debrief:
 Provide an uplifting, insightful 2-sentence evening debrief.
 Provide 1 concrete tweak to minimize tomorrow's friction.
 
-Respond with JSON adhering to:
-{
-  "coachDebrief": string,
-  "microUpgrade": string,
-  "mindsetNote": string
-}`;
+Respond with JSON adhering to schema.`;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.8-flash',
-        contents: prompt,
-        config: {
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              coachDebrief: { type: Type.STRING },
-              microUpgrade: { type: Type.STRING },
-              mindsetNote: { type: Type.STRING },
-            },
-            required: ['coachDebrief', 'microUpgrade', 'mindsetNote'],
-          },
+      const reflectSchema = {
+        type: Type.OBJECT,
+        properties: {
+          coachDebrief: { type: Type.STRING },
+          microUpgrade: { type: Type.STRING },
+          mindsetNote: { type: Type.STRING },
         },
-      });
+        required: ['coachDebrief', 'microUpgrade', 'mindsetNote'],
+      };
 
-      const responseText = response.text;
-      if (!responseText) throw new Error('Empty AI response');
-      res.json(JSON.parse(responseText));
+      const parsedData = await callGemini(prompt, reflectSchema);
+      res.json(parsedData);
     } catch (error: any) {
       console.error('Error in /api/ai/reflect:', error);
       res.json({
