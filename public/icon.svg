@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4f46e5"/>
+      <stop offset="50%" stop-color="#6366f1"/>
+      <stop offset="100%" stop-color="#7c3aed"/>
+    </linearGradient>
+    <linearGradient id="shield" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#e0e7ff" stop-opacity="0.9"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="16" stdDeviation="24" flood-color="#1e1b4b" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <!-- Background rounded squircle -->
+  <rect width="512" height="512" rx="128" fill="url(#bg)"/>
+
+  <!-- Inner ambient glow -->
+  <circle cx="256" cy="180" r="140" fill="#ffffff" fill-opacity="0.12"/>
+
+  <!-- Main Game Shield / Badge -->
+  <g filter="url(#shadow)">
+    <!-- Sword / Star Accent Crest -->
+    <path d="M256 90 L360 140 C360 270 256 360 256 390 C256 360 152 270 152 140 Z" fill="url(#shield)"/>
+    
+    <!-- Gamepad / Quest Star Emblem inside shield -->
+    <path d="M256 160 L272 210 L324 212 L282 242 L298 292 L256 262 L214 292 L230 242 L188 212 L240 210 Z" fill="#4f46e5"/>
+    <circle cx="256" cy="235" r="14" fill="#fbbf24"/>
+  </g>
+
+  <!-- Level XP Progress Ring accent at base -->
+  <path d="M190 410 C210 422 232 428 256 428 C280 428 302 422 322 410" stroke="#a5b4fc" stroke-width="8" stroke-linecap="round" fill="none"/>
+</svg>

@@ -1,0 +1,6 @@
+{
+  "name": "Atomic Flow - Sustainable Daily Rhythm & Habit Tracker",
+  "description": "An Atomic Habits inspired daily progress tracker and diary replacement featuring customizable day sections, intelligent AI task breakdowns, habit scorecards, dopamine-balanced scheduling, and timely reminders.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
