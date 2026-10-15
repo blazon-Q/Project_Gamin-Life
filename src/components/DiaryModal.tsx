@@ -141,11 +141,22 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({
     };
 
     onSaveEntry(entry);
-    setSelectedLogId(entryId);
     setSaveSuccess(true);
+
+    // Clear all inputs immediately so space is completely fresh and ready for another entry
+    setSelectedLogId('new');
+    setWins('');
+    setOnePercentBetter('');
+    setFrictionEncountered('');
+    setRewardEnjoyed('');
+    setAmides('');
+    setEnergyRating(4);
+    setAiCoachInsight('');
+    setIdentityAffirmation('');
+
     setTimeout(() => {
       setSaveSuccess(false);
-    }, 1200);
+    }, 1800);
   };
 
   // Sort past entries newest first (by date then by updatedAt)
@@ -204,6 +215,23 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({
 
         {activeTab === 'today' ? (
           <div className="space-y-4">
+            {/* Saved Notification Banner */}
+            {saveSuccess && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs flex items-center justify-between animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="flex items-center space-x-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span className="font-semibold">Log saved to Archive! The fields are cleared for your next entry.</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('history')}
+                  className="px-2.5 py-1 bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-[11px] font-bold cursor-pointer transition-colors"
+                >
+                  View in Archive →
+                </button>
+              </div>
+            )}
+
             {/* Daily Execution Snapshot */}
             <div className="grid grid-cols-3 gap-2.5 text-center text-xs">
               <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
