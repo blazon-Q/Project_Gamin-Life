@@ -79,11 +79,15 @@ export interface Habit {
 }
 
 export interface DailyDiaryEntry {
+  id: string; // Unique log ID (e.g. log_timestamp_random)
   date: string; // YYYY-MM-DD
+  logTime?: string; // e.g. "09:30 AM" or "Evening Check-in"
+  logTitle?: string; // e.g. "Morning Check-in", "Afternoon Sprint", "Evening Victory"
   wins: string;
   onePercentBetter: string;
   frictionEncountered: string;
   rewardEnjoyed: string;
+  amides?: string; // Daily reflection / notes / amends / amides
   energyRating: number; // 1-5
   aiCoachInsight?: string;
   identityAffirmation?: string;
@@ -91,6 +95,8 @@ export interface DailyDiaryEntry {
   tasksTotalCount: number;
   habitsCompletedCount: number;
   habitsTotalCount: number;
+  completedTaskTitles?: string[]; // List of completed tasks for that day
+  completedHabitTitles?: string[]; // List of completed habits for that day
   updatedAt: string;
 }
 

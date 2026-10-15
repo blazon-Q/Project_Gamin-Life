@@ -32,6 +32,7 @@ interface AccountModalProps {
     diaryEntries: Record<string, DailyDiaryEntry>;
     notifications: NotificationItem[];
     xpPoints: number;
+    accountKey?: string;
   }) => void;
 }
 
@@ -120,6 +121,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
         diaryEntries: result.diaryEntries || diaryEntries,
         notifications: result.notifications || notifications,
         xpPoints: result.xpPoints || xpPoints,
+        accountKey: cleaned,
       });
 
       setMessage({
@@ -209,7 +211,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
           </div>
         )}
 
-        {/* Current Active Account Box */}
+        {/* Current Active Profile Box */}
         <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <img
@@ -225,8 +227,8 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                 </span>
               </div>
               <div className="text-xs text-slate-500 flex items-center gap-1.5 mt-0.5">
-                <Mail className="w-3.5 h-3.5 text-slate-400" />
-                <span className="font-mono text-slate-700">{userProfile.email || activeAcc}</span>
+                <UserCheck className="w-3.5 h-3.5 text-indigo-500" />
+                <span className="font-mono text-slate-700">{activeAcc === 'default' ? 'Device Profile' : activeAcc}</span>
               </div>
             </div>
           </div>
@@ -267,23 +269,23 @@ export const AccountModal: React.FC<AccountModalProps> = ({
           </div>
         </div>
 
-        {/* Connect Google / Browser Account */}
+        {/* Connect Profile or Cloud Sync Key */}
         <div className="space-y-3 pt-1">
           <div>
             <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-              Link Your Browser or Google Account
+              Profile Sync & Cloud Memory
             </h4>
             <p className="text-xs text-slate-500 mt-0.5">
-              Enter your email (e.g. your Chrome Google account) so your progress is permanently loaded whenever you visit.
+              Enter a username or sync key to save and sync your progress across devices without requiring an email.
             </p>
           </div>
 
           <div className="flex items-center space-x-2">
             <div className="relative flex-1">
-              <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+              <UserCheck className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
               <input
-                type="email"
-                placeholder="e.g. blazon000000@gmail.com"
+                type="text"
+                placeholder="e.g. Blazon, Warrior, Hero"
                 value={emailInput}
                 onChange={(e) => setEmailInput(e.target.value)}
                 className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-indigo-500"
@@ -295,19 +297,8 @@ export const AccountModal: React.FC<AccountModalProps> = ({
               disabled={loading || !emailInput.trim()}
               className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer shrink-0 flex items-center space-x-1"
             >
-              <span>Connect</span>
+              <span>Switch / Save</span>
               <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          {/* Quick 1-click button for the user's specific account */}
-          <div className="flex flex-wrap gap-2 pt-1">
-            <button
-              type="button"
-              onClick={() => handleConnectAccount('blazon000000@gmail.com')}
-              className="px-3 py-1.5 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-200 border border-slate-200 rounded-xl text-[11px] font-medium text-slate-700 transition-colors cursor-pointer flex items-center space-x-1.5"
-            >
-              <span>⚡ Connect as blazon000000@gmail.com</span>
             </button>
           </div>
         </div>
@@ -316,7 +307,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
         {knownAccounts.length > 0 && (
           <div className="space-y-2 pt-1">
             <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-              Remembered Accounts On This App
+              Saved Profiles On This App
             </h4>
             <div className="space-y-1.5 max-h-32 overflow-y-auto pr-1">
               {knownAccounts.map((acc) => (

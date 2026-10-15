@@ -240,20 +240,6 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) 
                 autoFocus
               />
             </div>
-
-            <div className="pt-1">
-              <span className="text-[11px] text-slate-500 block mb-1">Or continue with browser account:</span>
-              <button
-                type="button"
-                onClick={() => {
-                  setName('blazon');
-                  handleFinish();
-                }}
-                className="w-full py-2 px-3 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-300 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 transition-all flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <span>⚡ Continue with blazon000000@gmail.com</span>
-              </button>
-            </div>
           </div>
         )}
 

@@ -120,11 +120,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             onChange={(e) => setName(e.target.value)}
             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-sm text-slate-800 font-semibold focus:outline-none focus:border-indigo-500"
           />
-          {profile.email && (
-            <p className="text-[11px] text-slate-400 mt-1 font-mono">
-              Linked Memory Account: {profile.email}
-            </p>
-          )}
         </div>
 
         {/* Level & XP Stats */}

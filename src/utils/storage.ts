@@ -453,7 +453,24 @@ export function saveHabits(habits: Habit[]): void {
 export function loadDiaryEntries(): Record<string, DailyDiaryEntry> {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.DIARY) || localStorage.getItem('atomic_flow_diary');
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        const normalized: Record<string, DailyDiaryEntry> = {};
+        for (const key of Object.keys(parsed)) {
+          const item = parsed[key];
+          if (item && typeof item === 'object') {
+            const entryId = item.id || `log_${item.date || key}_${Date.parse(item.updatedAt || '0') || key}`;
+            normalized[entryId] = {
+              ...item,
+              id: entryId,
+              date: item.date || key,
+            };
+          }
+        }
+        return normalized;
+      }
+    }
   } catch (e) {
     console.error('Error loading diary:', e);
   }
@@ -463,10 +480,25 @@ export function loadDiaryEntries(): Record<string, DailyDiaryEntry> {
 export function saveDiaryEntry(entry: DailyDiaryEntry): void {
   try {
     const existing = loadDiaryEntries();
-    existing[entry.date] = entry;
+    const entryId = entry.id || `log_${entry.date}_${Date.now()}`;
+    const finalizedEntry: DailyDiaryEntry = {
+      ...entry,
+      id: entryId,
+    };
+    existing[entryId] = finalizedEntry;
     localStorage.setItem(STORAGE_KEYS.DIARY, JSON.stringify(existing));
   } catch (e) {
     console.error('Error saving diary:', e);
+  }
+}
+
+export function deleteDiaryEntry(entryId: string): void {
+  try {
+    const existing = loadDiaryEntries();
+    delete existing[entryId];
+    localStorage.setItem(STORAGE_KEYS.DIARY, JSON.stringify(existing));
+  } catch (e) {
+    console.error('Error deleting diary entry:', e);
   }
 }
 

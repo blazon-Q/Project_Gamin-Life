@@ -61,8 +61,7 @@ export default function App() {
       streakShields: 2,
       joinedAt: new Date().toISOString(),
       hasOnboarded: true,
-      email: 'blazon000000@gmail.com',
-      accountType: 'browser',
+      accountType: 'guest',
     };
   });
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -203,7 +202,6 @@ export default function App() {
     const finalized: UserProfile = {
       ...newProfile,
       hasOnboarded: true,
-      email: newProfile.email || activeAccount,
     };
     setUserProfile(finalized);
     setHabits(newHabits);
@@ -232,6 +230,7 @@ export default function App() {
     diaryEntries: Record<string, DailyDiaryEntry>;
     notifications: NotificationItem[];
     xpPoints: number;
+    accountKey?: string;
   }) => {
     setUserProfile(loaded.profile);
     setTasks(loaded.tasks);
@@ -239,9 +238,9 @@ export default function App() {
     setDiaryEntries(loaded.diaryEntries);
     setNotifications(loaded.notifications);
     setXpPoints(loaded.xpPoints);
-    if (loaded.profile.email) {
-      setActiveAccountState(loaded.profile.email);
-      setActiveAccount(loaded.profile.email);
+    if (loaded.accountKey) {
+      setActiveAccountState(loaded.accountKey);
+      setActiveAccount(loaded.accountKey);
     }
     saveUserProfile(loaded.profile);
     saveTasks(loaded.tasks);
@@ -374,11 +373,20 @@ export default function App() {
     setHabits((prev) => prev.filter((h) => h.id !== habitId));
   };
 
-  // Save Diary Entry
+  // Save Diary Entry (supports multiple logs per day)
   const handleSaveDiaryEntry = (entry: DailyDiaryEntry) => {
     saveDiaryEntry(entry);
-    setDiaryEntries((prev) => ({ ...prev, [entry.date]: entry }));
+    setDiaryEntries((prev) => ({ ...prev, [entry.id]: entry }));
     addXp(50);
+  };
+
+  // Delete Diary Entry
+  const handleDeleteDiaryEntry = (entryId: string) => {
+    setDiaryEntries((prev) => {
+      const next = { ...prev };
+      delete next[entryId];
+      return next;
+    });
   };
 
   // Apply Subtasks from AI Splitter Modal
@@ -413,7 +421,6 @@ export default function App() {
     streakShields: 2,
     joinedAt: new Date().toISOString(),
     hasOnboarded: true,
-    email: activeAccount,
   };
 
   const completedQuestsCount = tasks.filter((t) => t.isCompleted).length;
@@ -555,6 +562,7 @@ export default function App() {
           diaryEntries={diaryEntries}
           onClose={() => setIsDiaryOpen(false)}
           onSaveEntry={handleSaveDiaryEntry}
+          onDeleteEntry={handleDeleteDiaryEntry}
         />
       )}
 

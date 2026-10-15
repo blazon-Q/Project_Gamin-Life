@@ -514,11 +514,11 @@ Respond with JSON adhering to schema.`;
     }
   });
 
-  // 3. Connect / Sign In with Google or Browser account
+  // 3. Connect / Sign In with Profile Key or Username
   app.post('/api/auth/google', (req, res) => {
     try {
-      const { credential, email: explicitEmail, name: explicitName, picture: explicitPicture } = req.body;
-      let email = explicitEmail;
+      const { credential, email: explicitEmail, account: explicitAccount, name: explicitName, picture: explicitPicture } = req.body;
+      let accountKey = explicitAccount || explicitEmail;
       let name = explicitName;
       let picture = explicitPicture;
 
@@ -527,7 +527,7 @@ Respond with JSON adhering to schema.`;
           const parts = credential.split('.');
           if (parts.length === 3) {
             const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf-8'));
-            email = payload.email || email;
+            accountKey = payload.email || payload.name || accountKey;
             name = payload.name || name;
             picture = payload.picture || picture;
           }
@@ -536,11 +536,11 @@ Respond with JSON adhering to schema.`;
         }
       }
 
-      if (!email) {
-        return res.status(400).json({ success: false, error: 'Email or account identifier is required' });
+      if (!accountKey) {
+        return res.status(400).json({ success: false, error: 'Username or profile identifier is required' });
       }
 
-      const key = email.toLowerCase().trim();
+      const key = accountKey.toLowerCase().trim();
       const allUsers = readUsersData();
       let userData = allUsers[key];
 
@@ -557,8 +557,7 @@ Respond with JSON adhering to schema.`;
             streakShields: 2,
             joinedAt: new Date().toISOString(),
             hasOnboarded: true,
-            email: key,
-            accountType: 'google',
+            accountType: 'guest',
           },
           tasks: [],
           habits: [],

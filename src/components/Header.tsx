@@ -164,16 +164,16 @@ export const Header: React.FC<HeaderProps> = ({
               <span className="text-slate-600 font-mono text-[11px] font-semibold">{xpPoints} XP</span>
             </button>
 
-            {/* Cloud Memory & Account Button */}
+            {/* Cloud Memory & Sync Button */}
             <button
               type="button"
               onClick={onOpenAccount}
               className="flex items-center space-x-1.5 px-2.5 py-1.5 text-xs font-semibold bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl border border-slate-200 transition-all cursor-pointer shadow-2xs"
-              title="Account & Cloud Memory: Auto-saves your username, level, and quests"
+              title="Cloud Memory & Backup: Auto-saves your username, level, and quests"
             >
               <Cloud className="w-3.5 h-3.5 text-indigo-600" />
               <span className="hidden md:inline max-w-[120px] truncate text-[11px]">
-                {userProfile.email || (activeAccount !== 'default' ? activeAccount : 'Cloud Saved')}
+                {activeAccount !== 'default' ? activeAccount : 'Auto-Saved'}
               </span>
               <span
                 className={`w-2 h-2 rounded-full ${

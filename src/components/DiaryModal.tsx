@@ -9,6 +9,7 @@ interface DiaryModalProps {
   diaryEntries: Record<string, DailyDiaryEntry>;
   onClose: () => void;
   onSaveEntry: (entry: DailyDiaryEntry) => void;
+  onDeleteEntry?: (entryId: string) => void;
 }
 
 export const DiaryModal: React.FC<DiaryModalProps> = ({
@@ -18,25 +19,64 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({
   diaryEntries,
   onClose,
   onSaveEntry,
+  onDeleteEntry,
 }) => {
   const [activeTab, setActiveTab] = useState<'today' | 'history'>('today');
 
-  const existingEntry = diaryEntries[currentDate];
+  // Logs for currentDate (can be multiple on the same day!)
+  const allEntriesList = Object.values(diaryEntries);
+  const todayLogs = allEntriesList
+    .filter((e) => e.date === currentDate)
+    .sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
 
-  const [wins, setWins] = useState(existingEntry?.wins || '');
-  const [onePercentBetter, setOnePercentBetter] = useState(existingEntry?.onePercentBetter || '');
-  const [frictionEncountered, setFrictionEncountered] = useState(existingEntry?.frictionEncountered || '');
-  const [rewardEnjoyed, setRewardEnjoyed] = useState(existingEntry?.rewardEnjoyed || '');
-  const [energyRating, setEnergyRating] = useState(existingEntry?.energyRating || 4);
-  const [aiCoachInsight, setAiCoachInsight] = useState(existingEntry?.aiCoachInsight || '');
-  const [identityAffirmation, setIdentityAffirmation] = useState(existingEntry?.identityAffirmation || '');
+  // Track which log is currently active or 'new'
+  const [selectedLogId, setSelectedLogId] = useState<string>('new');
+
+  const [wins, setWins] = useState('');
+  const [onePercentBetter, setOnePercentBetter] = useState('');
+  const [frictionEncountered, setFrictionEncountered] = useState('');
+  const [rewardEnjoyed, setRewardEnjoyed] = useState('');
+  const [amides, setAmides] = useState('');
+  const [energyRating, setEnergyRating] = useState(4);
+  const [aiCoachInsight, setAiCoachInsight] = useState('');
+  const [identityAffirmation, setIdentityAffirmation] = useState('');
 
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
+  // Switch between existing log or brand new log
+  const handleSelectLog = (logId: string) => {
+    setSelectedLogId(logId);
+    if (logId === 'new') {
+      setWins('');
+      setOnePercentBetter('');
+      setFrictionEncountered('');
+      setRewardEnjoyed('');
+      setAmides('');
+      setEnergyRating(4);
+      setAiCoachInsight('');
+      setIdentityAffirmation('');
+    } else {
+      const found = diaryEntries[logId];
+      if (found) {
+        setWins(found.wins || '');
+        setOnePercentBetter(found.onePercentBetter || '');
+        setFrictionEncountered(found.frictionEncountered || '');
+        setRewardEnjoyed(found.rewardEnjoyed || '');
+        setAmides(found.amides || '');
+        setEnergyRating(found.energyRating || 4);
+        setAiCoachInsight(found.aiCoachInsight || '');
+        setIdentityAffirmation(found.identityAffirmation || '');
+      }
+    }
+  };
+
   const dayTasks = tasks.filter((t) => t.date === currentDate);
-  const completedTasks = dayTasks.filter((t) => t.isCompleted).length;
-  const habitsDone = habits.filter((h) => Boolean(h.completions[currentDate])).length;
+  const completedTasks = dayTasks.filter((t) => t.isCompleted);
+  const completedTaskTitles = completedTasks.map((t) => t.title);
+
+  const completedHabits = habits.filter((h) => Boolean(h.completions[currentDate]));
+  const completedHabitTitles = completedHabits.map((h) => h.title);
 
   const handleAskAICoach = async () => {
     setIsAiLoading(true);
@@ -48,9 +88,9 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({
           wins,
           onePercentBetter,
           frictionEncountered,
-          completedCount: completedTasks,
+          completedCount: completedTasks.length,
           totalCount: dayTasks.length,
-          habitsCompleted: habitsDone,
+          habitsCompleted: completedHabits.length,
         }),
       });
 
@@ -72,33 +112,48 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({
   };
 
   const handleSave = () => {
+    const now = new Date();
+    const timeFormatted = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const entryId =
+      selectedLogId !== 'new'
+        ? selectedLogId
+        : `log_${currentDate}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+
     const entry: DailyDiaryEntry = {
+      id: entryId,
       date: currentDate,
+      logTime: timeFormatted,
       wins: wins.trim(),
       onePercentBetter: onePercentBetter.trim(),
       frictionEncountered: frictionEncountered.trim(),
       rewardEnjoyed: rewardEnjoyed.trim(),
+      amides: amides.trim(),
       energyRating,
       aiCoachInsight: aiCoachInsight || undefined,
       identityAffirmation: identityAffirmation || undefined,
-      tasksCompletedCount: completedTasks,
+      tasksCompletedCount: completedTasks.length,
       tasksTotalCount: dayTasks.length,
-      habitsCompletedCount: habitsDone,
+      habitsCompletedCount: completedHabits.length,
       habitsTotalCount: habits.length,
-      updatedAt: new Date().toISOString(),
+      completedTaskTitles,
+      completedHabitTitles,
+      updatedAt: now.toISOString(),
     };
 
     onSaveEntry(entry);
+    setSelectedLogId(entryId);
     setSaveSuccess(true);
     setTimeout(() => {
       setSaveSuccess(false);
-      onClose();
-    }, 800);
+    }, 1200);
   };
 
-  const pastEntriesList = Object.values(diaryEntries).sort((a, b) =>
-    b.date.localeCompare(a.date)
-  );
+  // Sort past entries newest first (by date then by updatedAt)
+  const pastEntriesList = [...allEntriesList].sort((a, b) => {
+    const comp = b.date.localeCompare(a.date);
+    if (comp !== 0) return comp;
+    return (b.updatedAt || '').localeCompare(a.updatedAt || '');
+  });
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
@@ -110,7 +165,7 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({
               <BookOpen className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-slate-900">Daily Victory Log & Evening Reflection</h3>
+              <h3 className="text-base font-bold text-slate-900">Daily Victory Log & Reflection</h3>
               <p className="text-xs text-slate-500">Record your wins, micro-upgrades, and reflections</p>
             </div>
           </div>
@@ -124,7 +179,7 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({
                   activeTab === 'today' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
-                Today ({currentDate})
+                Log Entry
               </button>
               <button
                 type="button"
@@ -154,13 +209,13 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({
               <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
                 <span className="text-slate-500 block text-[10px] font-semibold">Tasks Done</span>
                 <span className="text-sm font-bold text-slate-900 font-mono">
-                  {completedTasks}/{dayTasks.length}
+                  {completedTasks.length}/{dayTasks.length}
                 </span>
               </div>
               <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
                 <span className="text-slate-500 block text-[10px] font-semibold">Habits Completed</span>
                 <span className="text-sm font-bold text-emerald-600 font-mono">
-                  {habitsDone}/{habits.length}
+                  {completedHabits.length}/{habits.length}
                 </span>
               </div>
               <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
@@ -243,6 +298,19 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({
                   value={rewardEnjoyed}
                   onChange={(e) => setRewardEnjoyed(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1 text-purple-700">
+                  5. Amides, Reflections & Daily Notes
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="e.g. Lessons learned, amides/adjustments, notes on mindset, or things to follow up on."
+                  value={amides}
+                  onChange={(e) => setAmides(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-800 placeholder-slate-400 focus:outline-none focus:border-purple-500"
                 />
               </div>
             </div>
@@ -330,14 +398,22 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({
             ) : (
               pastEntriesList.map((entry) => (
                 <div
-                  key={entry.date}
+                  key={entry.id || entry.date}
                   className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2 text-xs"
                 >
                   <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
-                    <span className="font-bold text-slate-800 text-sm font-mono flex items-center gap-1.5">
-                      <Calendar className="w-3.5 h-3.5 text-indigo-600" />
-                      {entry.date}
-                    </span>
+                    <div className="flex items-center space-x-2">
+                      <span className="font-bold text-slate-800 text-sm font-mono flex items-center gap-1.5">
+                        <Calendar className="w-3.5 h-3.5 text-indigo-600" />
+                        {entry.date}
+                      </span>
+                      {entry.logTime && (
+                        <span className="text-[11px] text-slate-500 font-mono">
+                          • {entry.logTime}
+                        </span>
+                      )}
+                    </div>
+
                     <div className="flex items-center space-x-2 text-slate-500 text-[11px]">
                       <span>
                         Tasks: {entry.tasksCompletedCount}/{entry.tasksTotalCount}
@@ -351,26 +427,127 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({
                           <span key={i}>★</span>
                         ))}
                       </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveTab('today');
+                          handleSelectLog(entry.id);
+                        }}
+                        className="px-2 py-0.5 bg-white hover:bg-slate-100 border border-slate-200 text-indigo-600 rounded-md font-semibold cursor-pointer shadow-2xs"
+                        title="Edit / view this session"
+                      >
+                        Edit
+                      </button>
+
+                      {onDeleteEntry && (
+                        <button
+                          type="button"
+                          onClick={() => onDeleteEntry(entry.id)}
+                          className="px-1.5 py-0.5 text-slate-400 hover:text-rose-600 rounded cursor-pointer"
+                          title="Delete entry"
+                        >
+                          ✕
+                        </button>
+                      )}
                     </div>
                   </div>
 
+                  {/* 1. Wins */}
                   {entry.wins && (
-                    <div>
-                      <span className="font-semibold text-amber-700">Wins:</span>{' '}
-                      <span className="text-slate-700">{entry.wins}</span>
+                    <div className="bg-amber-50/60 p-2 rounded-xl border border-amber-100/80">
+                      <span className="font-bold text-amber-800 block text-[11px] mb-0.5">🏆 Wins & Accomplishments:</span>
+                      <p className="text-slate-700 whitespace-pre-wrap">{entry.wins}</p>
                     </div>
                   )}
 
+                  {/* 2. Micro-Upgrade */}
                   {entry.onePercentBetter && (
-                    <div>
-                      <span className="font-semibold text-indigo-700">Micro-Upgrade:</span>{' '}
-                      <span className="text-slate-700">{entry.onePercentBetter}</span>
+                    <div className="bg-indigo-50/60 p-2 rounded-xl border border-indigo-100/80">
+                      <span className="font-bold text-indigo-800 block text-[11px] mb-0.5">⚡ Micro-Upgrade for Tomorrow:</span>
+                      <p className="text-slate-700 whitespace-pre-wrap">{entry.onePercentBetter}</p>
                     </div>
                   )}
 
+                  {/* 3. Friction & Distraction Triggers */}
+                  {entry.frictionEncountered && (
+                    <div className="bg-rose-50/50 p-2 rounded-xl border border-rose-100/70">
+                      <span className="font-bold text-rose-800 block text-[11px] mb-0.5">⚠️ Friction & Challenges Faced:</span>
+                      <p className="text-slate-700 whitespace-pre-wrap">{entry.frictionEncountered}</p>
+                    </div>
+                  )}
+
+                  {/* 4. Guilt-Free Rewards */}
+                  {entry.rewardEnjoyed && (
+                    <div className="bg-emerald-50/50 p-2 rounded-xl border border-emerald-100/70">
+                      <span className="font-bold text-emerald-800 block text-[11px] mb-0.5">🎉 Rewards & Rest Enjoyed:</span>
+                      <p className="text-slate-700">{entry.rewardEnjoyed}</p>
+                    </div>
+                  )}
+
+                  {/* 5. Amides / Reflection Notes */}
+                  {entry.amides && (
+                    <div className="bg-purple-50/50 p-2 rounded-xl border border-purple-100/70">
+                      <span className="font-bold text-purple-800 block text-[11px] mb-0.5">📝 Amides, Reflections & Notes:</span>
+                      <p className="text-slate-700 whitespace-pre-wrap">{entry.amides}</p>
+                    </div>
+                  )}
+
+                  {/* 6. Completed Tasks Done */}
+                  {entry.completedTaskTitles && entry.completedTaskTitles.length > 0 && (
+                    <div className="bg-slate-100/80 p-2 rounded-xl border border-slate-200">
+                      <span className="font-bold text-slate-800 block text-[11px] mb-1">
+                        ✅ Completed Tasks Done ({entry.completedTaskTitles.length}):
+                      </span>
+                      <div className="flex flex-wrap gap-1">
+                        {entry.completedTaskTitles.map((taskTitle, idx) => (
+                          <span
+                            key={idx}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 bg-white border border-slate-200 rounded-md text-[10px] font-medium text-slate-700 shadow-2xs"
+                          >
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                            {taskTitle}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 7. Completed Habits */}
+                  {entry.completedHabitTitles && entry.completedHabitTitles.length > 0 && (
+                    <div className="bg-slate-100/80 p-2 rounded-xl border border-slate-200">
+                      <span className="font-bold text-slate-800 block text-[11px] mb-1">
+                        🔥 Habits Maintained ({entry.completedHabitTitles.length}):
+                      </span>
+                      <div className="flex flex-wrap gap-1">
+                        {entry.completedHabitTitles.map((habitTitle, idx) => (
+                          <span
+                            key={idx}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 bg-white border border-slate-200 rounded-md text-[10px] font-medium text-slate-700 shadow-2xs"
+                          >
+                            <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                            {habitTitle}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 8. AI Coach Insight */}
                   {entry.aiCoachInsight && (
-                    <div className="p-2 bg-indigo-50 border border-indigo-100 rounded-lg text-indigo-800 italic text-[11px]">
-                      Coach: "{entry.aiCoachInsight}"
+                    <div className="p-2.5 bg-indigo-50 border border-indigo-100 rounded-xl text-indigo-900 italic text-[11px] flex items-start gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-indigo-600 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-bold not-italic text-indigo-950 block mb-0.5">Coach Insight:</span>
+                        <span>"{entry.aiCoachInsight}"</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 9. Mindset / Identity Affirmation */}
+                  {entry.identityAffirmation && (
+                    <div className="text-[11px] text-slate-600 font-medium px-1">
+                      Mindset: <span className="italic">"{entry.identityAffirmation}"</span>
                     </div>
                   )}
                 </div>
